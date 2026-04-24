@@ -1,0 +1,1901 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hardware Diagnostics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --surface: #111115;
+    --surface2: #18181f;
+    --border: #2a2a35;
+    --border-bright: #3a3a50;
+    --text: #e8e8f0;
+    --text-dim: #6a6a80;
+    --text-muted: #3a3a50;
+    --accent: #7c6fff;
+    --accent2: #ff6b6b;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --blue: #60a5fa;
+    --red: #f87171;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,111,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,111,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .layout {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  header h1 {
+    font-family: var(--sans);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  header .subtitle {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+
+  .nav {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+  }
+
+  .nav-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .nav-btn:hover { border-color: var(--border-bright); color: var(--text); }
+
+  .nav-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .nav-btn .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: background 0.3s;
+  }
+
+  .nav-btn.pass .status-dot { background: var(--green); }
+  .nav-btn.fail .status-dot { background: var(--red); }
+
+  .panel {
+    display: none;
+    animation: fadeIn 0.2s ease;
+  }
+
+  .panel.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .panel-title {
+    font-family: var(--sans);
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .panel-title .icon { font-size: 18px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  .card-label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+  }
+
+  /* ── SPEAKER ── */
+  .speaker-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .speaker-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .speaker-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .speaker-card.left::before { background: radial-gradient(circle at 20% 50%, rgba(124,111,255,0.15), transparent 70%); }
+  .speaker-card.right::before { background: radial-gradient(circle at 80% 50%, rgba(96,165,250,0.15), transparent 70%); }
+
+  .speaker-card:hover::before, .speaker-card.playing::before { opacity: 1; }
+
+  .speaker-card:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-2px);
+  }
+
+  .speaker-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .speaker-label {
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .speaker-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .speaker-card.playing .speaker-label { color: var(--accent); }
+
+  .speaker-wave {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 3px;
+    height: 20px;
+    margin-top: 12px;
+  }
+
+  .speaker-wave span {
+    display: inline-block;
+    width: 3px;
+    background: var(--accent);
+    border-radius: 2px;
+    height: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .speaker-card.playing .speaker-wave span { opacity: 1; }
+
+  .speaker-card.playing .speaker-wave span:nth-child(1) { animation: wave 0.8s ease-in-out infinite; }
+  .speaker-card.playing .speaker-wave span:nth-child(2) { animation: wave 0.8s ease-in-out 0.1s infinite; }
+  .speaker-card.playing .speaker-wave span:nth-child(3) { animation: wave 0.8s ease-in-out 0.2s infinite; }
+  .speaker-card.playing .speaker-wave span:nth-child(4) { animation: wave 0.8s ease-in-out 0.3s infinite; }
+  .speaker-card.playing .speaker-wave span:nth-child(5) { animation: wave 0.8s ease-in-out 0.4s infinite; }
+
+  @keyframes wave {
+    0%, 100% { height: 4px; }
+    50% { height: 18px; }
+  }
+
+  .result-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .result-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .result-btn.pass {
+    background: rgba(74,222,128,0.1);
+    border-color: rgba(74,222,128,0.4);
+    color: var(--green);
+  }
+
+  .result-btn.fail {
+    background: rgba(248,113,113,0.1);
+    border-color: rgba(248,113,113,0.4);
+    color: var(--red);
+  }
+
+  .result-btn:hover { opacity: 0.8; }
+
+  /* ── KEYBOARD ── */
+  .kb-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .kb-toggle {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.08em;
+  }
+
+  .kb-toggle.active {
+    background: var(--surface);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .kb-toggle:hover { border-color: var(--border-bright); color: var(--text); }
+
+  .kb-reset {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .kb-reset:hover { border-color: var(--red); color: var(--red); }
+
+  .keyboard {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    overflow-x: auto;
+    user-select: none;
+  }
+
+  .kb-row {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 5px;
+    justify-content: center;
+  }
+
+  .key {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: 3px solid #050507;
+    border-radius: 6px;
+    min-width: 42px;
+    height: 42px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.1s;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .key:hover { border-color: var(--border-bright); background: #1e1e28; }
+
+  .key.pressed {
+    background: rgba(124,111,255,0.25);
+    border-color: var(--accent);
+    border-bottom-width: 1px;
+    transform: translateY(2px);
+    color: var(--accent);
+  }
+
+  .key.tested {
+    border-color: rgba(74,222,128,0.5);
+    background: rgba(74,222,128,0.07);
+  }
+
+  .key .primary {
+    font-size: 12px;
+    font-family: var(--mono);
+    line-height: 1;
+  }
+
+  .key .secondary {
+    font-size: 9px;
+    color: var(--text-dim);
+    line-height: 1;
+    margin-top: 1px;
+  }
+
+  .key.key-wide { min-width: 68px; }
+  .key.key-wider { min-width: 90px; }
+  .key.key-caps { min-width: 72px; }
+  .key.key-shift-l { min-width: 88px; }
+  .key.key-shift-r { min-width: 88px; }
+  .key.key-enter-pc { min-width: 88px; }
+  .key.key-space { min-width: 220px; }
+  .key.key-space-mac { min-width: 260px; }
+  .key.key-fn { min-width: 48px; }
+  .key.key-ctrl { min-width: 55px; }
+  .key.key-alt { min-width: 55px; }
+  .key.key-cmd { min-width: 65px; }
+  .key.key-cmd-r { min-width: 65px; }
+  .key.key-backspace { min-width: 88px; }
+  .key.key-tab { min-width: 68px; }
+  .key.key-iso { min-width: 42px; height: 89px; border-radius: 0 6px 6px 0; font-size: 11px; }
+  .key.key-enter-l { min-width: 42px; height: 42px; border-radius: 6px 0 0 0; }
+  .key.key-backslash { min-width: 52px; }
+  .key.key-del { min-width: 52px; }
+  .key.key-numrow { min-width: 44px; }
+
+  .kb-stats {
+    display: flex;
+    gap: 20px;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+  }
+
+  .kb-stat { display: flex; flex-direction: column; gap: 2px; }
+  .kb-stat .val { font-size: 18px; font-family: var(--sans); font-weight: 700; }
+  .kb-stat .lbl { color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; }
+  .kb-stat .val.green { color: var(--green); }
+
+  /* ── CAMERA ── */
+  .cam-container {
+    position: relative;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 16/9;
+    max-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cam-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+  }
+
+  .cam-container video.active { display: block; }
+
+  .cam-placeholder {
+    text-align: center;
+    color: var(--text-dim);
+  }
+
+  .cam-placeholder .cam-icon { font-size: 48px; margin-bottom: 12px; }
+  .cam-placeholder p { font-size: 13px; }
+
+  .cam-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .cam-overlay .corner {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-color: var(--accent);
+    border-style: solid;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .cam-overlay.active .corner { opacity: 1; }
+  .corner.tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+
+  .cam-info {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    background: rgba(0,0,0,0.7);
+    padding: 4px 8px;
+    border-radius: 3px;
+    display: none;
+  }
+
+  .cam-info.active { display: block; }
+
+  .btn-primary {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    padding: 10px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-stop {
+    background: transparent;
+    border: 1px solid var(--red);
+    color: var(--red);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    padding: 10px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .btn-stop:hover { background: rgba(248,113,113,0.1); }
+
+  .btn-row { display: flex; gap: 10px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+
+  /* ── MICROPHONE ── */
+  .mic-visualizer {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    height: 120px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    padding: 12px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .mic-bar {
+    width: 4px;
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+    height: 4px;
+    transition: height 0.05s ease;
+    flex-shrink: 0;
+  }
+
+  .mic-idle-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-muted);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+  }
+
+  .level-meter {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .level-label { font-size: 11px; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; width: 80px; }
+
+  .level-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .level-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--green), var(--yellow), var(--red));
+    border-radius: 3px;
+    transition: width 0.05s;
+  }
+
+  .level-val { font-size: 11px; width: 40px; text-align: right; color: var(--text-dim); }
+
+  /* ── TOUCHPAD ── */
+  .touchpad-area {
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 480px;
+    aspect-ratio: 16/10;
+    margin: 0 auto;
+    position: relative;
+    cursor: crosshair;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  .touchpad-area::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.3);
+    pointer-events: none;
+  }
+
+  .tp-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  .tp-hint .tp-icon { font-size: 32px; margin-bottom: 8px; }
+  .tp-hint p { font-size: 12px; color: var(--text-dim); }
+
+  .tp-trail {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: trailFade 1s ease forwards;
+  }
+
+  @keyframes trailFade {
+    0% { opacity: 0.8; transform: scale(1); }
+    100% { opacity: 0; transform: scale(2); }
+  }
+
+  .tp-tests {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .tp-test-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+
+  .tp-test-item.done {
+    border-color: rgba(74,222,128,0.5);
+    background: rgba(74,222,128,0.07);
+  }
+
+  .tp-test-item .tp-test-icon { font-size: 20px; margin-bottom: 6px; }
+  .tp-test-item .tp-test-name { font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; }
+  .tp-test-item .tp-test-status { font-size: 10px; margin-top: 4px; color: var(--text-muted); }
+  .tp-test-item.done .tp-test-status { color: var(--green); }
+
+  /* ── WIFI ── */
+  .wifi-link-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+  }
+
+  .wifi-link-icon { font-size: 28px; flex-shrink: 0; }
+
+  .wifi-link-label {
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 3px;
+  }
+
+  .wifi-link-sub { font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em; }
+
+  .wifi-link-btn {
+    margin-left: auto;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 18px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s;
+    flex-shrink: 0;
+  }
+
+  .wifi-link-btn:hover { opacity: 0.85; transform: translateY(-1px); }
+
+  .wifi-pw-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .wifi-pw-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    transition: border-color 0.2s;
+  }
+
+  .wifi-pw-card:hover { border-color: var(--border-bright); }
+
+  .wifi-pw-networks {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+
+  .wifi-ssid {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+
+  .wifi-ssid-sep { color: var(--text-muted); font-size: 12px; }
+
+  .wifi-pw-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+  }
+
+  .wifi-pw-val {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 16px;
+    letter-spacing: 0.06em;
+    color: var(--text);
+  }
+
+  .wifi-copy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .wifi-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .wifi-copy-btn.copied { border-color: var(--green); color: var(--green); }
+
+  .copy-icon { font-size: 13px; }
+
+  .wifi-pw-hint { font-size: 10px; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 8px; }
+
+  /* ── DISPLAY ── */
+  .display-color-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .display-color-btn {
+    border-radius: 10px;
+    aspect-ratio: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 10px;
+    border: 2px solid transparent;
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .display-color-btn:hover {
+    transform: scale(1.04);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    border-color: rgba(255,255,255,0.2);
+  }
+
+  .dcb-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.7);
+    font-family: var(--mono);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+  }
+
+  #display-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    cursor: pointer;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  #display-overlay.active { display: flex; }
+
+  #display-overlay-label {
+    font-family: var(--sans);
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.15;
+    mix-blend-mode: difference;
+    color: #fff;
+    pointer-events: none;
+  }
+
+  #display-overlay-hint {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.12;
+    mix-blend-mode: difference;
+    color: #fff;
+    pointer-events: none;
+  }
+
+  .display-result-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .display-result-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 64px;
+  }
+
+  .dr-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .dr-name { font-size: 11px; color: var(--text-dim); letter-spacing: 0.08em; }
+
+  .dr-status {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+  }
+
+  .dr-status.seen { color: var(--yellow); }
+  .dr-status.ok { color: var(--green); }
+
+  /* Status badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid;
+  }
+
+  .badge.pass { color: var(--green); border-color: rgba(74,222,128,0.3); background: rgba(74,222,128,0.08); }
+  .badge.fail { color: var(--red); border-color: rgba(248,113,113,0.3); background: rgba(248,113,113,0.08); }
+  .badge.testing { color: var(--yellow); border-color: rgba(251,191,36,0.3); background: rgba(251,191,36,0.08); }
+  .badge.idle { color: var(--text-dim); border-color: var(--border); }
+
+  .status-msg {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 8px;
+    min-height: 18px;
+    letter-spacing: 0.04em;
+  }
+
+  .status-msg.ok { color: var(--green); }
+  .status-msg.err { color: var(--red); }
+
+  /* ISO Enter key (European style) */
+  .key-enter-iso-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  /* ── SPEED TEST WIDGET ── */
+  .speed-test-wrapper {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+
+  .speed-test-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .speed-test-label .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .speed-test-iframe-wrap {
+    position: relative;
+    width: 100%;
+    padding-bottom: 50%;
+    min-height: 360px;
+  }
+
+  .speed-test-iframe-wrap iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 360px;
+    border: none;
+    overflow: hidden;
+    display: block;
+  }
+
+  .speed-test-credit {
+    padding: 8px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--text-muted);
+    text-align: right;
+    letter-spacing: 0.06em;
+  }
+
+  .speed-test-credit a {
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .speed-test-credit a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="layout">
+  <header>
+    <h1>Hardware Diagnostics</h1>
+    <span class="subtitle">Danish ISO Layout</span>
+  </header>
+
+  <div class="nav">
+    <button class="nav-btn active" onclick="showPanel('speaker')">
+      <span class="status-dot" id="dot-speaker"></span> Speaker
+    </button>
+    <button class="nav-btn" onclick="showPanel('keyboard')">
+      <span class="status-dot" id="dot-keyboard"></span> Keyboard
+    </button>
+    <button class="nav-btn" onclick="showPanel('camera')">
+      <span class="status-dot" id="dot-camera"></span> Camera
+    </button>
+    <button class="nav-btn" onclick="showPanel('microphone')">
+      <span class="status-dot" id="dot-microphone"></span> Microphone
+    </button>
+    <button class="nav-btn" onclick="showPanel('touchpad')">
+      <span class="status-dot" id="dot-touchpad"></span> Touchpad
+    </button>
+    <button class="nav-btn" onclick="showPanel('wifi')">
+      <span class="status-dot" id="dot-wifi"></span> WiFi
+    </button>
+    <button class="nav-btn" onclick="showPanel('display')">
+      <span class="status-dot" id="dot-display"></span> Display
+    </button>
+  </div>
+
+  <!-- ══ SPEAKER ══ -->
+  <div class="panel active" id="panel-speaker">
+    <div class="panel-header">
+      <div class="panel-title"><span class="icon">🔊</span> Speaker Test</div>
+      <span class="badge idle" id="badge-speaker">Idle</span>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:20px;letter-spacing:0.04em;">
+      Click each speaker to play a test tone. Confirm whether you can hear audio from that side.
+    </p>
+    <div class="speaker-grid">
+      <div class="speaker-card left" onclick="testSpeaker('left')">
+        <span class="speaker-icon">◀</span>
+        <div class="speaker-label">Left Speaker</div>
+        <div class="speaker-hint">Click to test</div>
+        <div class="speaker-wave">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+      <div class="speaker-card right" onclick="testSpeaker('right')">
+        <span class="speaker-icon">▶</span>
+        <div class="speaker-label">Right Speaker</div>
+        <div class="speaker-hint">Click to test</div>
+        <div class="speaker-wave">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <div>
+        <div class="card-label">Left Speaker Result</div>
+        <div class="result-row">
+          <button class="result-btn pass" onclick="markResult('spk-left','pass')">✓ Virker</button>
+          <button class="result-btn fail" onclick="markResult('spk-left','fail')">✗ Virker ikke</button>
+        </div>
+        <div class="status-msg" id="spk-left-msg"></div>
+      </div>
+      <div>
+        <div class="card-label">Right Speaker Result</div>
+        <div class="result-row">
+          <button class="result-btn pass" onclick="markResult('spk-right','pass')">✓ Virker</button>
+          <button class="result-btn fail" onclick="markResult('spk-right','fail')">✗ Virker ikke</button>
+        </div>
+        <div class="status-msg" id="spk-right-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ KEYBOARD ══ -->
+  <div class="panel" id="panel-keyboard">
+    <div class="panel-header">
+      <div class="panel-title"><span class="icon">⌨</span> Keyboard Test</div>
+      <span class="badge idle" id="badge-keyboard">Idle</span>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;letter-spacing:0.04em;">
+      Press every key. Green = tested. Danish ISO layout supported for MacBook and standard PC.
+    </p>
+    <div class="kb-controls">
+      <button class="kb-toggle active" id="toggle-mac" onclick="setLayout('mac')">MacBook</button>
+      <button class="kb-toggle" id="toggle-pc" onclick="setLayout('pc')">Standard PC</button>
+      <button class="kb-reset" onclick="resetKeyboard()">Reset ↺</button>
+    </div>
+    <div class="keyboard" id="keyboard-container"></div>
+    <div class="kb-stats">
+      <div class="kb-stat"><div class="val" id="kb-tested-count">0</div><div class="lbl">Tested</div></div>
+      <div class="kb-stat"><div class="val" id="kb-total-count">0</div><div class="lbl">Total</div></div>
+      <div class="kb-stat"><div class="val green" id="kb-pct">0%</div><div class="lbl">Coverage</div></div>
+    </div>
+  </div>
+
+  <!-- ══ CAMERA ══ -->
+  <div class="panel" id="panel-camera">
+    <div class="panel-header">
+      <div class="panel-title"><span class="icon">📷</span> Camera Test</div>
+      <span class="badge idle" id="badge-camera">Idle</span>
+    </div>
+    <div class="cam-container" id="cam-container">
+      <div class="cam-placeholder" id="cam-placeholder">
+        <div class="cam-icon">📷</div>
+        <p>Click "Start Camera" to begin test</p>
+      </div>
+      <video id="cam-video" autoplay muted playsinline></video>
+      <div class="cam-overlay" id="cam-overlay">
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner bl"></div>
+        <div class="corner br"></div>
+      </div>
+      <div class="cam-info" id="cam-info">● LIVE</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" id="cam-start-btn" onclick="startCamera()">Start Camera</button>
+      <button class="btn-stop" id="cam-stop-btn" onclick="stopCamera()" style="display:none">Stop</button>
+    </div>
+    <div class="status-msg" id="cam-msg"></div>
+    <div class="result-row" style="margin-top:16px;max-width:320px;">
+      <button class="result-btn pass" onclick="markResult('cam','pass')">✓ Virker</button>
+      <button class="result-btn fail" onclick="markResult('cam','fail')">✗ Virker ikke</button>
+    </div>
+    <div class="status-msg" id="cam-result-msg"></div>
+  </div>
+
+  <!-- ══ MICROPHONE ══ -->
+  <div class="panel" id="panel-microphone">
+    <div class="panel-header">
+      <div class="panel-title"><span class="icon">🎙</span> Microphone Test</div>
+      <span class="badge idle" id="badge-microphone">Idle</span>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;letter-spacing:0.04em;">
+      Start the microphone and speak or make noise. Watch the visualizer respond.
+    </p>
+    <div class="mic-visualizer" id="mic-visualizer">
+      <div class="mic-idle-text" id="mic-idle-text">Microphone not active</div>
+    </div>
+    <div class="level-meter" style="margin-top:12px;">
+      <span class="level-label">Input Level</span>
+      <div class="level-bar"><div class="level-fill" id="mic-level-fill"></div></div>
+      <span class="level-val" id="mic-level-val">— dB</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" id="mic-start-btn" onclick="startMic()">Start Microphone</button>
+      <button class="btn-stop" id="mic-stop-btn" onclick="stopMic()" style="display:none">Stop</button>
+    </div>
+    <div class="status-msg" id="mic-msg"></div>
+    <div class="result-row" style="margin-top:16px;max-width:320px;">
+      <button class="result-btn pass" onclick="markResult('mic','pass')">✓ Virker</button>
+      <button class="result-btn fail" onclick="markResult('mic','fail')">✗ Virker ikke</button>
+    </div>
+    <div class="status-msg" id="mic-result-msg"></div>
+  </div>
+
+  <!-- ══ TOUCHPAD ══ -->
+  <div class="panel" id="panel-touchpad">
+    <div class="panel-header">
+      <div class="panel-title"><span class="icon">🖱</span> Touchpad Test</div>
+      <span class="badge idle" id="badge-touchpad">Idle</span>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;letter-spacing:0.04em;">
+      Use the touchpad area below. Move cursor, click, right-click, and scroll to complete each test.
+    </p>
+    <div class="touchpad-area" id="touchpad-area"
+      onmousemove="tpMove(event)"
+      onclick="tpClick(event)"
+      oncontextmenu="tpRightClick(event)"
+      onwheel="tpScroll(event)"
+      ontouchmove="tpTouchMove(event)"
+      ontouchstart="tpTouchStart(event)">
+      <div class="tp-hint" id="tp-hint">
+        <div class="tp-icon">👆</div>
+        <p>Move your cursor here</p>
+      </div>
+    </div>
+    <div class="tp-tests">
+      <div class="tp-test-item" id="tp-move">
+        <div class="tp-test-icon">↖↗</div>
+        <div class="tp-test-name">Cursor Move</div>
+        <div class="tp-test-status" id="tp-move-s">Not tested</div>
+      </div>
+      <div class="tp-test-item" id="tp-click-item">
+        <div class="tp-test-icon">👆</div>
+        <div class="tp-test-name">Left Click</div>
+        <div class="tp-test-status" id="tp-click-s">Not tested</div>
+      </div>
+      <div class="tp-test-item" id="tp-rclick-item">
+        <div class="tp-test-icon">🖱</div>
+        <div class="tp-test-name">Right Click</div>
+        <div class="tp-test-status" id="tp-rclick-s">Not tested</div>
+      </div>
+      <div class="tp-test-item" id="tp-scroll-item">
+        <div class="tp-test-icon">↕</div>
+        <div class="tp-test-name">Scroll</div>
+        <div class="tp-test-status" id="tp-scroll-s">Not tested</div>
+      </div>
+      <div class="tp-test-item" id="tp-touch-item">
+        <div class="tp-test-icon">✌</div>
+        <div class="tp-test-name">Touch / Tap</div>
+        <div class="tp-test-status" id="tp-touch-s">Not tested</div>
+      </div>
+      <div class="tp-test-item" id="tp-overall">
+        <div class="tp-test-icon">✅</div>
+        <div class="tp-test-name">Overall</div>
+        <div class="tp-test-status" id="tp-overall-s">Pending</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ WIFI ══ -->
+  <div class="panel" id="panel-wifi">
+    <div class="panel-header">
+      <div class="panel-title"><span class="icon">📶</span> WiFi</div>
+    </div>
+
+    <!-- Speed test widget -->
+    <div class="speed-test-wrapper">
+<!--OST Widget code start--><div style="text-align:right;"><div style="min-height:360px;"><div style="width:100%;height:0;padding-bottom:50%;position:relative;"><iframe style="border:none;position:absolute;top:0;left:0;width:100%;height:100%;min-height:360px;border:none;overflow:hidden !important;" src="//openspeedtest.com/speedtest"></iframe></div></div>Provided by <a href="https://openspeedtest.com">OpenSpeedtest.com</a></div><!-- OST Widget code end -->
+    </div>
+
+    <!-- WiFi passwords -->
+    <div class="card-label" style="margin-top:28px;">WiFi Credentials — Click to Copy</div>
+
+    <div class="wifi-pw-grid">
+      <!-- Card 1: PCS_5G + PSCS -->
+      <div class="wifi-pw-card">
+        <div class="wifi-pw-networks">
+          <span class="wifi-ssid">PCS_5G</span>
+          <span class="wifi-ssid-sep">&</span>
+          <span class="wifi-ssid">PSCS</span>
+        </div>
+        <div class="wifi-pw-row">
+          <div class="wifi-pw-val" id="pw1-val">Systemtool8000</div>
+          <button class="wifi-copy-btn" id="pw1-btn" onclick="copyWifi('pw1-val','pw1-btn')">
+            <span class="copy-icon">⎘</span> Copy
+          </button>
+        </div>
+        <div class="wifi-pw-hint">Password</div>
+      </div>
+
+      <!-- Card 2: PSCS_Guest -->
+      <div class="wifi-pw-card">
+        <div class="wifi-pw-networks">
+          <span class="wifi-ssid">PSCS_Guest</span>
+        </div>
+        <div class="wifi-pw-row">
+          <div class="wifi-pw-val" id="pw2-val">guest8000</div>
+          <button class="wifi-copy-btn" id="pw2-btn" onclick="copyWifi('pw2-val','pw2-btn')">
+            <span class="copy-icon">⎘</span> Copy
+          </button>
+        </div>
+        <div class="wifi-pw-hint">Password</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ DISPLAY ══ -->
+  <div class="panel" id="panel-display">
+    <div class="panel-header">
+      <div class="panel-title"><span class="icon">🖥</span> Display Test</div>
+      <span class="badge idle" id="badge-display">Idle</span>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:20px;letter-spacing:0.04em;">
+      Click a color to enter fullscreen. Look for dead pixels, backlight bleed, or color cast. Press <kbd style="background:var(--surface2);border:1px solid var(--border);padding:1px 6px;border-radius:3px;font-family:var(--mono)">Esc</kbd> to exit.
+    </p>
+    <div class="display-color-grid">
+      <div class="display-color-btn" style="background:#000;" onclick="showColor('#000000','Black')" title="Black">
+        <span class="dcb-label" style="color:#444">Black</span>
+      </div>
+      <div class="display-color-btn" style="background:#fff;" onclick="showColor('#ffffff','White')" title="White">
+        <span class="dcb-label" style="color:#bbb">White</span>
+      </div>
+      <div class="display-color-btn" style="background:#ff0000;" onclick="showColor('#ff0000','Red')" title="Red">
+        <span class="dcb-label">Red</span>
+      </div>
+      <div class="display-color-btn" style="background:#00c853;" onclick="showColor('#00c853','Green')" title="Green">
+        <span class="dcb-label">Green</span>
+      </div>
+      <div class="display-color-btn" style="background:#1565c0;" onclick="showColor('#1565c0','Blue')" title="Blue">
+        <span class="dcb-label">Blue</span>
+      </div>
+    </div>
+
+    <!-- Fullscreen overlay -->
+    <div id="display-overlay" onclick="exitColor()" title="Click or press Esc to exit">
+      <div id="display-overlay-label"></div>
+      <div id="display-overlay-hint">Click anywhere or press Esc to exit</div>
+    </div>
+
+    <div class="display-results" style="margin-top:24px;">
+      <div class="card-label">Results</div>
+      <div class="display-result-grid">
+        <div class="display-result-item" id="dr-Black">
+          <div class="dr-swatch" style="background:#000;border-color:#333"></div>
+          <div class="dr-name">Black</div>
+          <div class="dr-status" id="drs-Black">—</div>
+        </div>
+        <div class="display-result-item" id="dr-White">
+          <div class="dr-swatch" style="background:#fff"></div>
+          <div class="dr-name">White</div>
+          <div class="dr-status" id="drs-White">—</div>
+        </div>
+        <div class="display-result-item" id="dr-Red">
+          <div class="dr-swatch" style="background:#ff0000"></div>
+          <div class="dr-name">Red</div>
+          <div class="dr-status" id="drs-Red">—</div>
+        </div>
+        <div class="display-result-item" id="dr-Green">
+          <div class="dr-swatch" style="background:#00c853"></div>
+          <div class="dr-name">Green</div>
+          <div class="dr-status" id="drs-Green">—</div>
+        </div>
+        <div class="display-result-item" id="dr-Blue">
+          <div class="dr-swatch" style="background:#1565c0"></div>
+          <div class="dr-name">Blue</div>
+          <div class="dr-status" id="drs-Blue">—</div>
+        </div>
+      </div>
+      <div class="result-row" style="margin-top:16px;max-width:320px;">
+        <button class="result-btn pass" onclick="markResult('display','pass')">✓ Display OK</button>
+        <button class="result-btn fail" onclick="markResult('display','fail')">✗ Dead pixels / issue</button>
+      </div>
+      <div class="status-msg" id="display-result-msg"></div>
+    </div>
+  </div>
+
+</div>
+<script>
+// ─── NAV ───────────────────────────────────────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ─── RESULTS ──────────────────────────────────────────────────────
+const results = {};
+function markResult(key, val) {
+  results[key] = val;
+  const msgEl = document.getElementById(key + '-msg') || document.getElementById(key + '-result-msg');
+  if (msgEl) {
+    msgEl.textContent = val === 'pass' ? '✓ Markeret som OK' : '✗ Markeret som fejl';
+    msgEl.className = 'status-msg ' + (val === 'pass' ? 'ok' : 'err');
+  }
+  // Update nav dot based on relevant section
+  const dotMap = {
+    'spk-left': 'speaker', 'spk-right': 'speaker',
+    'cam': 'camera', 'mic': 'microphone'
+  };
+  const panel = dotMap[key];
+  if (panel) updateNavDot(panel);
+}
+
+function updateNavDot(panel) {
+  const dotEl = document.getElementById('dot-' + panel);
+  const keys = { speaker: ['spk-left','spk-right'], camera: ['cam'], microphone: ['mic'] };
+  const panelKeys = keys[panel] || [];
+  const vals = panelKeys.map(k => results[k]);
+  if (vals.some(v => v === 'fail')) {
+    dotEl.style.background = 'var(--red)';
+    document.querySelector(`[onclick*="${panel}"]`).classList.add('fail');
+  } else if (vals.every(v => v === 'pass')) {
+    dotEl.style.background = 'var(--green)';
+    document.querySelector(`[onclick*="${panel}"]`).classList.add('pass');
+  }
+}
+
+// ─── SPEAKER ──────────────────────────────────────────────────────
+let audioCtx;
+
+function testSpeaker(side) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const card = document.querySelector(`.speaker-card.${side}`);
+  card.classList.add('playing');
+  document.getElementById('badge-speaker').textContent = 'Testing';
+  document.getElementById('badge-speaker').className = 'badge testing';
+
+  const osc = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
+  const panner = audioCtx.createStereoPanner();
+
+  panner.pan.value = side === 'left' ? -1 : 1;
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.5);
+  gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + 0.05);
+  gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.0);
+
+  osc.connect(gainNode);
+  gainNode.connect(panner);
+  panner.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 1.1);
+
+  osc.onended = () => {
+    card.classList.remove('playing');
+    document.getElementById('badge-speaker').textContent = 'Idle';
+    document.getElementById('badge-speaker').className = 'badge idle';
+  };
+}
+
+// ─── KEYBOARD ─────────────────────────────────────────────────────
+let currentLayout = 'mac';
+let testedKeys = new Set();
+let totalKeys = 0;
+
+// Danish ISO Mac keyboard rows
+// Each key: [code, primary, secondary, classes]
+const macRows = [
+  // Function row
+  [['Escape','esc','',''],['F1','F1','','key-numrow'],['F2','F2','','key-numrow'],['F3','F3','','key-numrow'],['F4','F4','','key-numrow'],['F5','F5','','key-numrow'],['F6','F6','','key-numrow'],['F7','F7','','key-numrow'],['F8','F8','','key-numrow'],['F9','F9','','key-numrow'],['F10','F10','','key-numrow'],['F11','F11','','key-numrow'],['F12','F12','','key-numrow'],['Delete','del','','key-del']],
+  // Number row
+  [['Backquote','§','½',''],['Digit1','1','!',''],['Digit2','2','"',''],['Digit3','3','#',''],['Digit4','4','¤',''],['Digit5','5','%',''],['Digit6','6','&',''],['Digit7','7','/',''],['Digit8','8','(',''],['Digit9','9',')',''],['Digit0','0','=',''],['Minus','+','?',''],['Equal','´','`',''],['Backspace','⌫','','key-backspace']],
+  // Tab row
+  [['Tab','Tab','','key-tab'],['KeyQ','Q','',''],['KeyW','W','',''],['KeyE','E','',''],['KeyR','R','',''],['KeyT','T','',''],['KeyY','Y','',''],['KeyU','U','',''],['KeyI','I','',''],['KeyO','O','',''],['KeyP','P','',''],['BracketLeft','Å','',''],['BracketRight','¨','^',''],['Enter','⏎','','key-enter-l']],
+  // Caps row — ISO Enter spans rows 3+4
+  [['CapsLock','Caps','','key-caps'],['KeyA','A','',''],['KeyS','S','',''],['KeyD','D','',''],['KeyF','F','',''],['KeyG','G','',''],['KeyH','H','',''],['KeyJ','J','',''],['KeyK','K','',''],['KeyL','L','',''],['Semicolon','Æ','',''],['Quote','Ø','',''],['Backslash','\'','*',''],['_ISOENTER','↵','','key-iso']],
+  // Shift row (left shift shorter on ISO)
+  [['ShiftLeft','⇧','','key-shift-l'],['IntlBackslash','<','>',''],['KeyZ','Z','',''],['KeyX','X','',''],['KeyC','C','',''],['KeyV','V','',''],['KeyB','B','',''],['KeyN','N','',''],['KeyM','M','',''],['Comma',',',';',''],['Period','.',':',''],['Slash','-','_',''],['ShiftRight','⇧','','key-shift-r']],
+  // Bottom row (Mac)
+  [['Fn','fn','','key-fn'],['ControlLeft','⌃','','key-ctrl'],['AltLeft','⌥','','key-alt'],['MetaLeft','⌘','','key-cmd'],['Space','','','key-space-mac'],['MetaRight','⌘','','key-cmd-r'],['AltRight','⌥','','key-alt']]
+];
+
+// Danish ISO PC layout
+const pcRows = [
+  // Escape + F keys
+  [['Escape','Esc','',''],['F1','F1','','key-numrow'],['F2','F2','','key-numrow'],['F3','F3','','key-numrow'],['F4','F4','','key-numrow'],['F5','F5','','key-numrow'],['F6','F6','','key-numrow'],['F7','F7','','key-numrow'],['F8','F8','','key-numrow'],['F9','F9','','key-numrow'],['F10','F10','','key-numrow'],['F11','F11','','key-numrow'],['F12','F12','','key-numrow'],['PrintScreen','PrtSc','',''],['ScrollLock','ScrLk','',''],['Pause','Pause','','']],
+  // Number row
+  [['Backquote','½','§',''],['Digit1','1','!',''],['Digit2','2','"',''],['Digit3','3','#',''],['Digit4','4','¤',''],['Digit5','5','%',''],['Digit6','6','&',''],['Digit7','7','/',''],['Digit8','8','(',''],['Digit9','9',')',''],['Digit0','0','=',''],['Minus','+','?',''],['Equal','´','`',''],['Backspace','Backspace','','key-backspace']],
+  // Tab row
+  [['Tab','Tab','','key-tab'],['KeyQ','Q','',''],['KeyW','W','',''],['KeyE','E','',''],['KeyR','R','',''],['KeyT','T','',''],['KeyY','Y','',''],['KeyU','U','',''],['KeyI','I','',''],['KeyO','O','',''],['KeyP','P','',''],['BracketLeft','Å','',''],['BracketRight','¨','^',''],['Enter','↵','','key-enter-l']],
+  // Caps row
+  [['CapsLock','Caps Lock','','key-caps'],['KeyA','A','',''],['KeyS','S','',''],['KeyD','D','',''],['KeyF','F','',''],['KeyG','G','',''],['KeyH','H','',''],['KeyJ','J','',''],['KeyK','K','',''],['KeyL','L','',''],['Semicolon','Æ','',''],['Quote','Ø','',''],['Backslash','\'','*',''],['_ISOENTER','↵','','key-iso']],
+  // Shift row
+  [['ShiftLeft','Shift','','key-shift-l'],['IntlBackslash','<','>',''],['KeyZ','Z','',''],['KeyX','X','',''],['KeyC','C','',''],['KeyV','V','',''],['KeyB','B','',''],['KeyN','N','',''],['KeyM','M','',''],['Comma',',',';',''],['Period','.',':',''],['Slash','-','_',''],['ShiftRight','Shift','','key-shift-r']],
+  // Bottom row (PC)
+  [['ControlLeft','Ctrl','','key-ctrl'],['MetaLeft','Win','','key-alt'],['AltLeft','Alt','','key-alt'],['Space','','','key-space'],['AltRight','AltGr','','key-alt'],['MetaRight','Win','','key-alt'],['ContextMenu','Menu','','key-alt'],['ControlRight','Ctrl','','key-ctrl']]
+];
+
+function buildKeyboard(layout) {
+  const rows = layout === 'mac' ? macRows : pcRows;
+  const container = document.getElementById('keyboard-container');
+  container.innerHTML = '';
+  testedKeys = new Set();
+  let keyCount = 0;
+  let isoEnterEl = null;
+
+  rows.forEach((row, ri) => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'kb-row';
+
+    row.forEach(([code, primary, secondary, cls]) => {
+      if (code === '_ISOENTER') {
+        // ISO Enter lower half — we handled the top half already
+        const el = document.createElement('div');
+        el.className = 'key key-iso';
+        el.id = 'key-Enter';
+        el.dataset.code = 'Enter';
+        el.innerHTML = `<span class="primary" style="font-size:14px">↵</span>`;
+        el.style.marginLeft = '-5px';
+        el.style.height = '89px';
+        el.style.borderRadius = '0 6px 6px 0';
+        el.style.minWidth = '52px';
+        el.style.alignSelf = 'flex-end';
+        rowEl.appendChild(el);
+        isoEnterEl = el;
+        keyCount++;
+        return;
+      }
+      if (code === 'Enter' && cls === 'key-enter-l') {
+        // Top half of ISO enter
+        const el = document.createElement('div');
+        el.className = 'key key-enter-l';
+        el.id = 'key-Enter-top';
+        el.dataset.code = 'Enter';
+        el.style.minWidth = '30px';
+        el.style.borderRadius = '6px 6px 0 0';
+        el.innerHTML = `<span class="primary" style="font-size:10px"></span>`;
+        rowEl.appendChild(el);
+        return; // don't count this as separate
+      }
+      const el = document.createElement('div');
+      el.className = 'key' + (cls ? ' ' + cls : '');
+      el.id = 'key-' + code;
+      el.dataset.code = code;
+      el.innerHTML = `<span class="primary">${primary}</span>${secondary ? `<span class="secondary">${secondary}</span>` : ''}`;
+      rowEl.appendChild(el);
+      keyCount++;
+    });
+
+    container.appendChild(rowEl);
+  });
+
+  totalKeys = keyCount;
+  updateKbStats();
+}
+
+function setLayout(l) {
+  currentLayout = l;
+  document.getElementById('toggle-mac').classList.toggle('active', l === 'mac');
+  document.getElementById('toggle-pc').classList.toggle('active', l === 'pc');
+  buildKeyboard(l);
+}
+
+function resetKeyboard() {
+  buildKeyboard(currentLayout);
+}
+
+document.addEventListener('keydown', function(e) {
+  e.preventDefault();
+  const code = e.code;
+  const el = document.getElementById('key-' + code);
+  if (el) {
+    el.classList.add('pressed', 'tested');
+    // If ISO Enter
+    if (code === 'Enter') {
+      const topEl = document.getElementById('key-Enter-top');
+      if (topEl) { topEl.classList.add('pressed','tested'); }
+    }
+    if (!testedKeys.has(code)) {
+      testedKeys.add(code);
+      updateKbStats();
+    }
+    document.getElementById('badge-keyboard').textContent = `${code}`;
+    document.getElementById('badge-keyboard').className = 'badge testing';
+  }
+});
+
+document.addEventListener('keyup', function(e) {
+  const code = e.code;
+  const el = document.getElementById('key-' + code);
+  if (el) {
+    el.classList.remove('pressed');
+    if (code === 'Enter') {
+      const topEl = document.getElementById('key-Enter-top');
+      if (topEl) topEl.classList.remove('pressed');
+    }
+  }
+  if (testedKeys.size > 0) {
+    const pct = Math.round((testedKeys.size / totalKeys) * 100);
+    document.getElementById('badge-keyboard').textContent = `${pct}% tested`;
+    document.getElementById('badge-keyboard').className = pct === 100 ? 'badge pass' : 'badge testing';
+    if (pct === 100) {
+      document.getElementById('dot-keyboard').style.background = 'var(--green)';
+    }
+  }
+});
+
+function updateKbStats() {
+  const tested = testedKeys.size;
+  const pct = totalKeys > 0 ? Math.round((tested / totalKeys) * 100) : 0;
+  document.getElementById('kb-tested-count').textContent = tested;
+  document.getElementById('kb-total-count').textContent = totalKeys;
+  document.getElementById('kb-pct').textContent = pct + '%';
+}
+
+// ─── CAMERA ───────────────────────────────────────────────────────
+let camStream = null;
+
+// Normalise getUserMedia across browsers and secure/insecure contexts
+function getGetUserMedia() {
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    return (constraints) => navigator.mediaDevices.getUserMedia(constraints);
+  }
+  // Legacy prefixed versions (older Chrome/Firefox/Safari)
+  const legacy = navigator.getUserMedia
+    || navigator.webkitGetUserMedia
+    || navigator.mozGetUserMedia
+    || navigator.msGetUserMedia;
+  if (legacy) {
+    return (constraints) => new Promise((resolve, reject) => {
+      legacy.call(navigator, constraints, resolve, reject);
+    });
+  }
+  return null;
+}
+
+async function startCamera() {
+  const gum = getGetUserMedia();
+  if (!gum) {
+    const msg = window.isSecureContext === false
+      ? '✗ Camera requires HTTPS or localhost. Open this file via a local server (e.g. python3 -m http.server) or use Chrome with --allow-file-access-from-files.'
+      : '✗ Camera API not available in this browser.';
+    document.getElementById('cam-msg').textContent = msg;
+    document.getElementById('cam-msg').className = 'status-msg err';
+    document.getElementById('badge-camera').textContent = 'Error';
+    document.getElementById('badge-camera').className = 'badge fail';
+    return;
+  }
+  try {
+    camStream = await gum({ video: { facingMode: 'user' } });
+    const video = document.getElementById('cam-video');
+    video.srcObject = camStream;
+    video.classList.add('active');
+    document.getElementById('cam-placeholder').style.display = 'none';
+    document.getElementById('cam-overlay').classList.add('active');
+    document.getElementById('cam-info').classList.add('active');
+    document.getElementById('cam-start-btn').style.display = 'none';
+    document.getElementById('cam-stop-btn').style.display = '';
+    document.getElementById('cam-msg').textContent = '✓ Camera stream active';
+    document.getElementById('cam-msg').className = 'status-msg ok';
+    document.getElementById('badge-camera').textContent = 'Live';
+    document.getElementById('badge-camera').className = 'badge testing';
+    // Get device info
+    const track = camStream.getVideoTracks()[0];
+    const settings = track.getSettings();
+    document.getElementById('cam-info').textContent = `● LIVE  ${settings.width||'?'}×${settings.height||'?'}`;
+  } catch(err) {
+    let msg = err.message || 'Camera access denied';
+    if (err.name === 'NotAllowedError') msg = 'Camera permission denied — check browser settings.';
+    else if (err.name === 'NotFoundError') msg = 'No camera found on this device.';
+    else if (err.name === 'NotReadableError') msg = 'Camera is in use by another application.';
+    document.getElementById('cam-msg').textContent = '✗ ' + msg;
+    document.getElementById('cam-msg').className = 'status-msg err';
+    document.getElementById('badge-camera').textContent = 'Error';
+    document.getElementById('badge-camera').className = 'badge fail';
+  }
+}
+
+function stopCamera() {
+  if (camStream) {
+    camStream.getTracks().forEach(t => t.stop());
+    camStream = null;
+  }
+  const video = document.getElementById('cam-video');
+  video.srcObject = null;
+  video.classList.remove('active');
+  document.getElementById('cam-placeholder').style.display = '';
+  document.getElementById('cam-overlay').classList.remove('active');
+  document.getElementById('cam-info').classList.remove('active');
+  document.getElementById('cam-start-btn').style.display = '';
+  document.getElementById('cam-stop-btn').style.display = 'none';
+  document.getElementById('badge-camera').textContent = 'Stopped';
+  document.getElementById('badge-camera').className = 'badge idle';
+}
+
+// ─── MICROPHONE ───────────────────────────────────────────────────
+let micStream = null, micAnalyser = null, micAF = null, micBars = [];
+
+function buildMicBars() {
+  const vis = document.getElementById('mic-visualizer');
+  vis.querySelectorAll('.mic-bar').forEach(b => b.remove());
+  micBars = [];
+  for (let i = 0; i < 60; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'mic-bar';
+    bar.style.background = `hsl(${240 + i*1.5}, 80%, 65%)`;
+    vis.appendChild(bar);
+    micBars.push(bar);
+  }
+}
+
+async function startMic() {
+  const gum = getGetUserMedia();
+  if (!gum) {
+    const msg = window.isSecureContext === false
+      ? '✗ Microphone requires HTTPS or localhost. Open this file via a local server (e.g. python3 -m http.server) or use Chrome with --allow-file-access-from-files.'
+      : '✗ Microphone API not available in this browser.';
+    document.getElementById('mic-msg').textContent = msg;
+    document.getElementById('mic-msg').className = 'status-msg err';
+    document.getElementById('badge-microphone').textContent = 'Error';
+    document.getElementById('badge-microphone').className = 'badge fail';
+    return;
+  }
+  try {
+    micStream = await gum({ audio: true });
+    const micCtx = new AudioContext();
+    micAnalyser = micCtx.createAnalyser();
+    micAnalyser.fftSize = 128;
+    const source = micCtx.createMediaStreamSource(micStream);
+    source.connect(micAnalyser);
+    buildMicBars();
+    document.getElementById('mic-idle-text').style.display = 'none';
+    document.getElementById('mic-start-btn').style.display = 'none';
+    document.getElementById('mic-stop-btn').style.display = '';
+    document.getElementById('mic-msg').textContent = '✓ Microphone active — speak now';
+    document.getElementById('mic-msg').className = 'status-msg ok';
+    document.getElementById('badge-microphone').textContent = 'Listening';
+    document.getElementById('badge-microphone').className = 'badge testing';
+    drawMic();
+  } catch(err) {
+    let msg = err.message || 'Microphone access denied';
+    if (err.name === 'NotAllowedError') msg = 'Microphone permission denied — check browser settings.';
+    else if (err.name === 'NotFoundError') msg = 'No microphone found on this device.';
+    else if (err.name === 'NotReadableError') msg = 'Microphone is in use by another application.';
+    document.getElementById('mic-msg').textContent = '✗ ' + msg;
+    document.getElementById('mic-msg').className = 'status-msg err';
+    document.getElementById('badge-microphone').textContent = 'Error';
+    document.getElementById('badge-microphone').className = 'badge fail';
+  }
+}
+
+function drawMic() {
+  if (!micAnalyser) return;
+  const data = new Uint8Array(micAnalyser.frequencyBinCount);
+  micAnalyser.getByteFrequencyData(data);
+  const maxH = 96;
+  let sum = 0;
+  data.forEach((v, i) => {
+    const h = Math.max(3, (v / 255) * maxH);
+    if (micBars[i]) micBars[i].style.height = h + 'px';
+    sum += v;
+  });
+  // Level meter
+  const avg = sum / data.length;
+  const pct = Math.min(100, (avg / 255) * 100 * 2.5);
+  document.getElementById('mic-level-fill').style.width = pct + '%';
+  const db = avg > 0 ? Math.round(20 * Math.log10(avg / 255)) : -Infinity;
+  document.getElementById('mic-level-val').textContent = isFinite(db) ? db + ' dB' : '— dB';
+  micAF = requestAnimationFrame(drawMic);
+}
+
+function stopMic() {
+  if (micAF) cancelAnimationFrame(micAF);
+  if (micStream) micStream.getTracks().forEach(t => t.stop());
+  micStream = null; micAnalyser = null;
+  if (micBars.length) micBars.forEach(b => b.style.height = '4px');
+  document.getElementById('mic-idle-text').style.display = '';
+  document.getElementById('mic-start-btn').style.display = '';
+  document.getElementById('mic-stop-btn').style.display = 'none';
+  document.getElementById('mic-level-fill').style.width = '0%';
+  document.getElementById('mic-level-val').textContent = '— dB';
+  document.getElementById('badge-microphone').textContent = 'Idle';
+  document.getElementById('badge-microphone').className = 'badge idle';
+}
+
+// ─── TOUCHPAD ─────────────────────────────────────────────────────
+const tpDone = { move: false, click: false, rclick: false, scroll: false, touch: false };
+
+function tpMark(type) {
+  if (tpDone[type]) return;
+  tpDone[type] = true;
+  const el = document.getElementById('tp-' + type + (type === 'click' ? '-item' : type === 'rclick' ? '-item' : type === 'scroll' ? '-item' : type === 'touch' ? '-item' : ''));
+  const elMap = {
+    move: 'tp-move', click: 'tp-click-item', rclick: 'tp-rclick-item',
+    scroll: 'tp-scroll-item', touch: 'tp-touch-item'
+  };
+  const itemEl = document.getElementById(elMap[type]);
+  if (itemEl) itemEl.classList.add('done');
+  document.getElementById(elMap[type].replace('-item','') + '-s' || 'tp-' + type + '-s').textContent = '✓ Done';
+  // Fix status IDs
+  const statusMap = {
+    move: 'tp-move-s', click: 'tp-click-s', rclick: 'tp-rclick-s',
+    scroll: 'tp-scroll-s', touch: 'tp-touch-s'
+  };
+  document.getElementById(statusMap[type]).textContent = '✓ Done';
+  checkTpOverall();
+}
+
+function checkTpOverall() {
+  const all = Object.values(tpDone).every(Boolean);
+  if (all) {
+    document.getElementById('tp-overall').classList.add('done');
+    document.getElementById('tp-overall-s').textContent = '✓ All tests passed';
+    document.getElementById('badge-touchpad').textContent = 'Pass';
+    document.getElementById('badge-touchpad').className = 'badge pass';
+    document.getElementById('dot-touchpad').style.background = 'var(--green)';
+  }
+}
+
+function spawnTrail(x, y, color) {
+  const area = document.getElementById('touchpad-area');
+  const rect = area.getBoundingClientRect();
+  const trail = document.createElement('div');
+  trail.className = 'tp-trail';
+  trail.style.cssText = `left:${x-rect.left-8}px;top:${y-rect.top-8}px;width:16px;height:16px;background:${color};`;
+  area.appendChild(trail);
+  setTimeout(() => trail.remove(), 1000);
+}
+
+function tpMove(e) {
+  document.getElementById('tp-hint').style.opacity = '0';
+  if (!tpDone.move) tpMark('move');
+  document.getElementById('badge-touchpad').textContent = 'Active';
+  document.getElementById('badge-touchpad').className = 'badge testing';
+}
+
+function tpClick(e) {
+  spawnTrail(e.clientX, e.clientY, 'rgba(124,111,255,0.5)');
+  if (!tpDone.click) tpMark('click');
+}
+
+function tpRightClick(e) {
+  e.preventDefault();
+  spawnTrail(e.clientX, e.clientY, 'rgba(96,165,250,0.5)');
+  if (!tpDone.rclick) tpMark('rclick');
+}
+
+function tpScroll(e) {
+  if (!tpDone.scroll) tpMark('scroll');
+}
+
+function tpTouchStart(e) {
+  if (!tpDone.touch) tpMark('touch');
+}
+
+function tpTouchMove(e) {
+  e.preventDefault();
+  tpMove(e.touches[0]);
+  if (e.touches.length > 1 && !tpDone.touch) tpMark('touch');
+}
+
+// ─── WIFI COPY ────────────────────────────────────────────────────
+function copyWifi(valId, btnId) {
+  const text = document.getElementById(valId).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById(btnId);
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerHTML = '<span class="copy-icon">⎘</span> Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.getElementById(btnId);
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerHTML = '<span class="copy-icon">⎘</span> Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+// ─── DISPLAY TEST ─────────────────────────────────────────────────
+let currentDisplayColor = null;
+
+function showColor(hex, name) {
+  const overlay = document.getElementById('display-overlay');
+  overlay.style.background = hex;
+  document.getElementById('display-overlay-label').textContent = name;
+  overlay.classList.add('active');
+  currentDisplayColor = name;
+
+  // Mark as seen in results
+  const statusEl = document.getElementById('drs-' + name);
+  if (statusEl && statusEl.textContent === '—') {
+    statusEl.textContent = 'Viewed';
+    statusEl.className = 'dr-status seen';
+  }
+
+  document.getElementById('badge-display').textContent = name;
+  document.getElementById('badge-display').className = 'badge testing';
+
+  // Try native fullscreen
+  try { overlay.requestFullscreen && overlay.requestFullscreen(); } catch(e) {}
+}
+
+function exitColor() {
+  const overlay = document.getElementById('display-overlay');
+  overlay.classList.remove('active');
+  try { document.fullscreenElement && document.exitFullscreen(); } catch(e) {}
+  document.getElementById('badge-display').textContent = 'Idle';
+  document.getElementById('badge-display').className = 'badge idle';
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const overlay = document.getElementById('display-overlay');
+    if (overlay && overlay.classList.contains('active')) exitColor();
+  }
+});
+
+document.addEventListener('fullscreenchange', function() {
+  if (!document.fullscreenElement) {
+    const overlay = document.getElementById('display-overlay');
+    if (overlay) overlay.classList.remove('active');
+  }
+});
+buildKeyboard('mac');
+</script>
+</body>
+</html>
