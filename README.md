@@ -18,3 +18,15 @@ A running developed PC tester for quickly test basic function of a PC
 **Memory dumps - mini dumps:** `C:\Windows\Minidump`
 
 **Full dumps:** `C:\Windows\MEMORY.DMP `
+
+## Check disk
+- Runs in read-only mode, checking the disk without repairing errors.
+	- `chkdsk`
+- Fixes errors on the disk. The drive must be locked.
+	- `chkdsk /f`
+- Locates bad sectors and recovers readable information (implies `/f`).
+	- `chkdsk /r`
+- Forces the volume to dismount first if necessary (often used with `/f`).
+	- `chkdsk /x`
+- Comprehensive scan to fix file system errors, locate bad sectors, and dismount the drive.
+	- `chkdsk /f /r /x`
