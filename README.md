@@ -16,4 +16,5 @@ A running developed PC tester for quickly test basic function of a PC
 
 ## Placering af dump logs
 **Memory dumps - mini dumps:** `C:\Windows\Minidump`
+
 **Full dumps:** `C:\Windows\MEMORY.DMP `
