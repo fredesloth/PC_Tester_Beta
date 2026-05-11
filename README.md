@@ -33,3 +33,5 @@ A running developed PC tester for quickly test basic function of a PC
 
 # Brave debloater 
 `iwr "https://raw.githubusercontent.com/ltx0101/SlimBrave/main/SlimBrave.ps1" -OutFile "SlimBrave.ps1"; .\SlimBrave.ps1`
+
+Read more: https://github.com/ltx0101/SlimBrave
